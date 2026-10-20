@@ -1,0 +1,1 @@
+public enum EstadoTurno { CONFIRMADO, CANCELADO, ATENDIDO, AUSENTE }

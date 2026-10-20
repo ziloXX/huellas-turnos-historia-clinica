@@ -6,3 +6,7 @@
 tmp/
 informe/
 diagramas/
+out/
+*.docx
+*.pdf
+*.drawio

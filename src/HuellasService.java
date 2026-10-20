@@ -1,89 +1,47 @@
 import java.math.BigDecimal;
 import java.sql.SQLException;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-
+import java.time.*;
+import java.util.List;
+import java.util.Locale;
 public final class HuellasService {
-    private final HuellasRepository datos = new HuellasRepository();
-
-    public long registrarCliente(String nombre, String dni, String telefono, String correo)
-        throws SQLException {
-        obligatorio(nombre, "nombre");
-        obligatorio(dni, "DNI");
-        obligatorio(telefono, "teléfono");
-        return datos.registrarCliente(nombre.trim(), dni.trim(), telefono.trim(), correo.trim());
+    private final ClienteRepository clientes=new ClienteRepository();
+    private final MascotaRepository mascotas=new MascotaRepository();
+    private final VeterinarioRepository veterinarios=new VeterinarioRepository();
+    private final TurnoRepository turnos=new TurnoRepository();
+    private final ConsultaRepository consultas=new ConsultaRepository();
+    private final VacunaRepository vacunas=new VacunaRepository();
+    public long registrarCliente(String nombre,String dni,String telefono,String correo) throws SQLException {
+        return clientes.guardar(new Cliente(0,nombre,dni,telefono,correo));
     }
-
-    public long registrarMascota(long clienteId, String nombre, String especie, String raza,
-                                String sexo, LocalDate nacimiento, String alergias)
-        throws SQLException {
-        positivo(clienteId, "cliente");
-        obligatorio(nombre, "nombre de la mascota");
-        if (!"PERRO".equals(especie) && !"GATO".equals(especie)) {
-            throw new IllegalArgumentException("La especie debe ser PERRO o GATO.");
-        }
-        if (!"MACHO".equals(sexo) && !"HEMBRA".equals(sexo)) {
-            throw new IllegalArgumentException("El sexo debe ser MACHO o HEMBRA.");
-        }
-        if (nacimiento != null && nacimiento.isAfter(LocalDate.now())) {
-            throw new IllegalArgumentException("La fecha de nacimiento no puede ser futura.");
-        }
-        return datos.registrarMascota(clienteId, nombre.trim(), especie, raza.trim(), sexo,
-            nacimiento, alergias.trim());
+    public Cliente cliente(long id) throws SQLException { return clientes.buscar(Validacion.id(id,"cliente")); }
+    public long registrarMascota(long clienteId,String nombre,String especie,String raza,String sexo,LocalDate nacimiento,String alergias) throws SQLException {
+        Especie tipo; Sexo genero;
+        try { tipo=Especie.valueOf(especie.trim().toUpperCase(Locale.ROOT)); genero=Sexo.valueOf(sexo.trim().toUpperCase(Locale.ROOT)); }
+        catch (IllegalArgumentException | NullPointerException e) { throw new IllegalArgumentException("Completá especie PERRO/GATO y sexo MACHO/HEMBRA."); }
+        return mascotas.guardar(new Mascota(0,clienteId,nombre,tipo,raza,genero,nacimiento,alergias,true));
     }
-
-    public String listarVeterinarios() throws SQLException {
-        return datos.listarVeterinarios();
+    public List<Veterinario> listarVeterinarios() throws SQLException { return veterinarios.listarActivos(); }
+    public List<Mascota> buscarMascotas(String nombre) throws SQLException {
+        Validacion.texto(nombre,"nombre a buscar",80);
+        return Algoritmos.buscarMascotas(mascotas.listar(),nombre);
     }
-
-    public long agendarTurno(long mascotaId, long veterinarioId, LocalDateTime inicio,
-                            String motivo) throws SQLException {
-        positivo(mascotaId, "mascota");
-        positivo(veterinarioId, "veterinario");
-        obligatorio(motivo, "motivo");
-        if (inicio.isBefore(LocalDateTime.now()) || inicio.getMinute() % 30 != 0
-                || inicio.getSecond() != 0) {
-            throw new IllegalArgumentException(
-                "Elegí una fecha futura y un horario en punto o y media. Cada turno dura 30 minutos."
-            );
-        }
-        return datos.agendarTurno(mascotaId, veterinarioId, inicio, motivo.trim());
+    public long agendarTurno(long mascotaId,long veterinarioId,LocalDateTime inicio,String motivo) throws SQLException {
+        if (inicio==null || !inicio.isAfter(LocalDateTime.now())) throw new IllegalArgumentException("Elegí una fecha y hora futuras.");
+        return turnos.guardar(new Turno(0,mascotaId,veterinarioId,inicio,motivo,EstadoTurno.CONFIRMADO,"",""));
     }
-
-    public String turnosDelDia(LocalDate fecha, long veterinarioId) throws SQLException {
-        if (veterinarioId < 0) {
-            throw new IllegalArgumentException("El número de veterinario no puede ser negativo.");
-        }
-        return datos.turnosDelDia(fecha, veterinarioId);
+    public List<Turno> turnosDelDia(LocalDate fecha,long veterinarioId) throws SQLException {
+        if (fecha==null || veterinarioId<0) throw new IllegalArgumentException("Revisá la fecha y el número de veterinario.");
+        List<Turno> agenda=turnos.delDia(fecha,veterinarioId);
+        Algoritmos.ordenarAgenda(agenda); return agenda;
     }
-
-    public long registrarConsulta(long turnoId, String motivo, String diagnostico,
-                                 String tratamiento, BigDecimal peso) throws SQLException {
-        positivo(turnoId, "turno");
-        obligatorio(motivo, "motivo");
-        obligatorio(diagnostico, "diagnóstico");
-        obligatorio(tratamiento, "tratamiento");
-        if (peso == null || peso.signum() <= 0) {
-            throw new IllegalArgumentException("El peso debe ser mayor que cero.");
-        }
-        return datos.registrarConsulta(turnoId, motivo.trim(), diagnostico.trim(),
-            tratamiento.trim(), peso);
+    public long registrarConsulta(long turnoId,String motivo,String diagnostico,String tratamiento,BigDecimal peso) throws SQLException {
+        return consultas.guardar(new Consulta(0,turnoId,motivo,diagnostico,tratamiento,peso,LocalDateTime.now(),""));
     }
-
-    public String historial(long mascotaId) throws SQLException {
-        positivo(mascotaId, "mascota");
-        return datos.historial(mascotaId);
+    public long registrarVacuna(long consultaId,String nombre,LocalDate aplicada,LocalDate refuerzo) throws SQLException {
+        return vacunas.guardar(new Vacuna(0,consultaId,nombre,aplicada,refuerzo));
     }
-
-    private static void obligatorio(String valor, String campo) {
-        if (valor == null || valor.isBlank()) {
-            throw new IllegalArgumentException("Falta completar " + campo + ".");
-        }
-    }
-
-    private static void positivo(long valor, String campo) {
-        if (valor <= 0) {
-            throw new IllegalArgumentException("El número de " + campo + " debe ser positivo.");
-        }
+    public HistoriaClinica historial(long mascotaId) throws SQLException {
+        Validacion.id(mascotaId,"mascota");
+        return new HistoriaClinica(mascotas.buscar(mascotaId),consultas.deMascota(mascotaId),vacunas.deMascota(mascotaId));
     }
 }
