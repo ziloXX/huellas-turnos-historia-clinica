@@ -1,3 +1,6 @@
+import huellas.modelo.*;
+import huellas.servicio.*;
+import huellas.persistencia.*;
 import java.time.*;
 import java.math.BigDecimal;
 import java.util.*;

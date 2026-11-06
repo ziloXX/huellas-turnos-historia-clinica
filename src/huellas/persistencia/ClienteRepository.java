@@ -1,3 +1,5 @@
+package huellas.persistencia;
+import huellas.modelo.*;
 import java.sql.*;
 import java.time.*;
 import java.util.ArrayList;
@@ -19,5 +21,14 @@ public final class ClienteRepository {
                 return new Cliente(rs.getLong("id"),rs.getString("nombre"),rs.getString("dni"),rs.getString("telefono"),rs.getString("correo"));
             }
         }
+    }
+    public List<Cliente> buscarPorNombreODni(String criterio)throws SQLException {
+        List<Cliente> lista=new ArrayList<>();
+        String sql="SELECT * FROM clientes WHERE LOCATE(?,nombre)>0 OR dni=? ORDER BY nombre,id";
+        try(Connection con=Conexion.abrir();PreparedStatement ps=con.prepareStatement(sql)) {
+            ps.setString(1,criterio);ps.setString(2,criterio);
+            try(ResultSet rs=ps.executeQuery()){while(rs.next())lista.add(new Cliente(rs.getLong("id"),rs.getString("nombre"),rs.getString("dni"),rs.getString("telefono"),rs.getString("correo")));}
+        }
+        return lista;
     }
 }

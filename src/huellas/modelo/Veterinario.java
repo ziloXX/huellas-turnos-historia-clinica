@@ -1,3 +1,4 @@
+package huellas.modelo;
 public final class Veterinario extends Persona {
     private final String matricula;
     public Veterinario(long id, String nombre, String matricula) {

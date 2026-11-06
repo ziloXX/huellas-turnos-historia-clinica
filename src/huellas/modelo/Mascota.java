@@ -1,3 +1,4 @@
+package huellas.modelo;
 import java.time.LocalDate;
 public final class Mascota {
     private final long id, clienteId;

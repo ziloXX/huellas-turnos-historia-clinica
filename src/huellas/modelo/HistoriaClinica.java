@@ -1,3 +1,4 @@
+package huellas.modelo;
 import java.util.List;
 public final class HistoriaClinica {
     private final Mascota mascota;

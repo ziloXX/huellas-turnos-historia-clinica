@@ -1,3 +1,5 @@
+package huellas.persistencia;
+import huellas.modelo.*;
 import java.sql.*;
 import java.time.*;
 import java.util.ArrayList;
@@ -46,5 +48,22 @@ public class TurnoRepository {
     private Turno leer(ResultSet rs,String mascota,String veterinario) throws SQLException {
         return new Turno(rs.getLong("id"),rs.getLong("mascota_id"),rs.getLong("veterinario_id"),
             rs.getTimestamp("inicio").toLocalDateTime(),rs.getString("motivo"),EstadoTurno.valueOf(rs.getString("estado")),mascota,veterinario);
+    }
+    public void cancelar(long id,String motivo)throws SQLException { cambiar(id,null,motivo); }
+    public void reprogramar(long id,LocalDateTime inicio)throws SQLException { cambiar(id,inicio,null); }
+    private void cambiar(long id,LocalDateTime inicio,String motivo)throws SQLException {
+        try(Connection con=Conexion.abrir()) {
+            con.setAutoCommit(false);
+            try {
+                Turno turno=bloquear(con,id);
+                if(inicio==null)turno.cancelar(motivo);else turno.reprogramar(inicio);
+                String sql=inicio==null?"UPDATE turnos SET estado='CANCELADO',motivo_cancelacion=? WHERE id=?":"UPDATE turnos SET inicio=? WHERE id=?";
+                try(PreparedStatement ps=con.prepareStatement(sql)) {
+                    if(inicio==null)ps.setString(1,motivo);else ps.setTimestamp(1,Timestamp.valueOf(inicio));
+                    ps.setLong(2,id);if(ps.executeUpdate()!=1)throw new SQLException("No se pudo modificar el turno.");
+                }
+                con.commit();
+            }catch(SQLException|RuntimeException e){try{con.rollback();}catch(SQLException fallo){e.addSuppressed(fallo);}throw e;}
+        }
     }
 }

@@ -1,7 +1,8 @@
+package huellas.modelo;
 import java.time.LocalDateTime;
 public final class Turno {
     private final long id, mascotaId, veterinarioId;
-    private final LocalDateTime inicio;
+    private LocalDateTime inicio;
     private final String motivo, mascota, veterinario;
     private EstadoTurno estado;
     public Turno(long id, long mascotaId, long veterinarioId, LocalDateTime inicio,
@@ -20,6 +21,17 @@ public final class Turno {
     public void atender() {
         if (estado != EstadoTurno.CONFIRMADO) throw new IllegalArgumentException("El turno ya fue cerrado.");
         estado=EstadoTurno.ATENDIDO;
+    }
+    public void cancelar(String motivoCancelacion) {
+        if (estado != EstadoTurno.CONFIRMADO) throw new IllegalArgumentException("Solo se puede cancelar un turno confirmado.");
+        Validacion.texto(motivoCancelacion,"motivo de cancelación",250);
+        estado=EstadoTurno.CANCELADO;
+    }
+    public void reprogramar(LocalDateTime nuevoInicio) {
+        if (estado != EstadoTurno.CONFIRMADO) throw new IllegalArgumentException("Solo se puede reprogramar un turno confirmado.");
+        if (nuevoInicio==null || !nuevoInicio.isAfter(LocalDateTime.now()) || nuevoInicio.getMinute()%30!=0 || nuevoInicio.getSecond()!=0 || nuevoInicio.getNano()!=0)
+            throw new IllegalArgumentException("Elegí una fecha futura, en punto o y media, sin segundos.");
+        inicio=nuevoInicio;
     }
     public long getId() { return id; }
     public long getMascotaId() { return mascotaId; }

@@ -1,3 +1,4 @@
+package huellas.modelo;
 public final class Cliente extends Persona {
     private final String dni;
     private final String telefono;

@@ -1,3 +1,4 @@
+package huellas.modelo;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 public final class Consulta {

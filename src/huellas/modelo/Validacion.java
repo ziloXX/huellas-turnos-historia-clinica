@@ -1,3 +1,4 @@
+package huellas.modelo;
 import java.math.BigDecimal;
 public final class Validacion {
     private Validacion() {}

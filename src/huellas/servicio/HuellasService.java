@@ -1,3 +1,6 @@
+package huellas.servicio;
+import huellas.persistencia.*;
+import huellas.modelo.*;
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.time.*;
@@ -43,5 +46,19 @@ public final class HuellasService {
     public HistoriaClinica historial(long mascotaId) throws SQLException {
         Validacion.id(mascotaId,"mascota");
         return new HistoriaClinica(mascotas.buscar(mascotaId),consultas.deMascota(mascotaId),vacunas.deMascota(mascotaId));
+    }
+    public List<Cliente> buscarClientes(String criterio)throws SQLException {
+        return clientes.buscarPorNombreODni(Validacion.texto(criterio,"nombre o DNI",100));
+    }
+    public void cancelarTurno(long id,String motivo)throws SQLException {
+        turnos.cancelar(Validacion.id(id,"turno"),Validacion.texto(motivo,"motivo de cancelación",250));
+    }
+    public void reprogramarTurno(long id,LocalDateTime inicio)throws SQLException {
+        if(inicio==null)throw new IllegalArgumentException("Falta la nueva fecha del turno.");
+        turnos.reprogramar(Validacion.id(id,"turno"),inicio);
+    }
+    public ReporteConsultas reporte(LocalDate desde,LocalDate hasta)throws SQLException {
+        new ReporteConsultas(desde,hasta,List.of());
+        return new ReporteConsultas(desde,hasta,consultas.porPeriodo(desde,hasta));
     }
 }

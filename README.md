@@ -1,6 +1,6 @@
 # Clínica Veterinaria Huellas
 
-Prototipo de consola en Java con MySQL para el trabajo práctico 3 de Seminario de Práctica de Informática. Continúa el sistema de turnos e historia clínica presentado en los trabajos anteriores.
+Prototipo de consola en Java con MySQL para el trabajo práctico 4 de Seminario de Práctica de Informática. Continúa el sistema de turnos e historia clínica presentado en los trabajos anteriores y reúne la versión integradora.
 
 ## Funciones del menú
 
@@ -13,15 +13,21 @@ Prototipo de consola en Java con MySQL para el trabajo práctico 3 de Seminario 
 7. Consultar la historia clínica, las alergias y las vacunas, incluso si la mascota tiene baja lógica.
 8. Buscar mascotas por parte del nombre y ver su responsable.
 9. Registrar una vacuna asociada a una consulta, con fecha opcional de refuerzo.
+10. Buscar clientes por nombre o DNI.
+11. Cancelar un turno confirmado, indicando el motivo.
+12. Reprogramar un turno confirmado, conservando su ID.
+13. Consultar el reporte de atenciones de un período.
+14. Guardar un reporte en un archivo nuevo.
+15. Abrir un reporte guardado.
 0. Salir.
 
-La autenticación, la cancelación y reprogramación de turnos, las bajas desde el menú y el envío de recordatorios quedan pendientes. Las tablas previstas para esas funciones se conservan. No se incorporan facturación ni portal web.
+La autenticación, las bajas desde el menú, las alertas de vacunas y el envío de recordatorios quedan pendientes. Las tablas previstas para esas funciones se conservan. No se incorporan facturación ni portal web.
 
 ## Preparación
 
 Se necesita MySQL 8, un JDK 17 o posterior y MySQL Connector/J. Se puede trabajar en VS Code con las extensiones de Java.
 
-1. En una instalación nueva, ejecutar `sql/01_esquema.sql`. Si ya se usó el TP2, se conserva la misma base: esta entrega no necesita migraciones.
+1. En una instalación nueva, ejecutar `sql/01_esquema.sql`. Si ya se usó TP2 o TP3, se conserva la misma base: esta entrega no necesita migraciones.
 2. Crear un usuario de MySQL con permisos sobre la base `huellas`.
 3. Ejecutar `sql/02_datos_y_consultas.sql` solamente si se necesitan los datos de ejemplo. No es un script para repetir: el DNI y la matrícula de ejemplo son únicos y su sección final modifica la mascota de muestra.
 4. Definir `HUELLAS_DB_USER` si el usuario no es `huellas_app`. Definir `HUELLAS_DB_URL` si la base no está en `localhost:3306/huellas`.
@@ -46,23 +52,38 @@ El script compila y pide la contraseña de MySQL de forma oculta si no está def
 Para compilar a mano, PowerShell necesita expandir los archivos, especialmente si la ruta contiene espacios:
 
 ```powershell
-$fuentes = @(Get-ChildItem .\src\*.java | ForEach-Object FullName)
+$fuentes = @(Get-ChildItem .\src -Recurse -Filter *.java | ForEach-Object FullName)
 javac -encoding UTF-8 --release 17 -d out $fuentes
 java -cp 'out;C:\DevTools\mysql-connector-j-26.7.0\mysql-connector-j-26.7.0.jar' HuellasApp
 ```
 
 En la ejecución manual hay que definir previamente `HUELLAS_DB_PASSWORD` en el entorno. El script evita tener que escribirla en un comando.
 
-## Organización y POO
+## Organización y patrón MVC
 
-- `Persona` es abstracta. `Cliente` y `Veterinario` heredan su identidad y nombre, y redefinen `descripcion()`. El menú invoca ese método mediante una referencia de tipo `Persona` al mostrar profesionales y responsables de mascotas.
-- `Mascota`, `Turno`, `Consulta` y `Vacuna` tienen atributos privados y constructores que validan los datos. `Turno.atender()` controla el cambio de estado; no hay un setter público que permita cerrarlo arbitrariamente.
-- `HuellasService` coordina las operaciones; los seis archivos `*Repository.java` concentran el SQL de cada entidad. `Conexion` abre JDBC y `Jdbc` contiene ayudas de lectura y claves generadas.
-- `HistoriaClinica` reúne la mascota y copias no modificables de las listas de consultas y vacunas.
-- `Algoritmos` busca nombres con un recorrido lineal y ordena la agenda por inserción. Son operaciones pensadas para el volumen reducido de este prototipo; la búsqueda completa carga el catálogo en memoria.
-- `HuellasApp` muestra los resultados y recupera errores de fechas, números, validación y SQL. `Fechas` exige fechas reales, sin ajustar automáticamente un día inexistente.
+- `src/HuellasApp.java` inicia el controlador.
+- `huellas.vista.VistaConsola` muestra el menú, pide datos y presenta objetos, agenda, historia y reportes. El controlador no escribe directamente en `System.out`.
+- `huellas.controlador.HuellasController` elige la operación, convierte las entradas y coordina servicio y vista. Recupera errores de datos, SQL y archivos.
+- `huellas.modelo` contiene Persona, Cliente, Veterinario, Mascota, Turno, Consulta, Vacuna, HistoriaClinica y los tipos de reporte. Persona es abstracta; Cliente y Veterinario redefinen descripcion(), invocado mediante Persona.
+- `huellas.servicio` conserva las reglas y los algoritmos de búsqueda e inserción. HuellasService coordina los repositorios.
+- `huellas.persistencia` es el paquete JDBC: Conexion, Jdbc y seis repositorios por entidad. Usa sentencias preparadas y transacciones.
+- `huellas.archivos.ArchivoReporte` guarda y recupera reportes sin alterar la base.
 
-Las relaciones entre registros se representan con IDs y claves foráneas. Los IDs de clientes y veterinarios pertenecen a tablas distintas. El valor 0 identifica un objeto nuevo antes de guardarlo; las referencias a registros existentes deben ser positivas.
+El patrón MVC separa modelo, vista y controlador. La persistencia por entidad complementa esa estructura. Los modelos mantienen atributos privados y constructores que validan datos. Turno controla sus cambios de estado y horario. Los IDs pertenecen a cada tabla; el ID 0 indica un objeto nuevo antes de guardar.
+
+## Turnos y búsquedas
+
+La opción 10 permite recuperar el ID del cliente a partir de su nombre o DNI. Ese ID es el que pide el alta de mascota; no hay que ingresar el teléfono como número de cliente.
+
+Solo un turno CONFIRMADO puede cancelarse o reprogramarse. La cancelación guarda su motivo y libera el horario. La reprogramación conserva el ID y exige una fecha futura en punto o y media. Si el nuevo horario está ocupado, la transacción se revierte y el turno conserva su fecha anterior. Los turnos ATENDIDOS, CANCELADOS o AUSENTES no admiten estos cambios.
+
+## Reportes, arreglos y ArrayList
+
+El reporte usa la fecha real de atención de `consultas.atendida_en` y un período con ambos extremos incluidos. `ReporteConsultas` guarda las filas en un ArrayList y calcula sus cantidades en un arreglo `long[7]`, con índices de lunes a domingo. La vista recorre esos valores junto con un arreglo de nombres de días. Los resultados y el arreglo se devuelven mediante copias para evitar cambios externos.
+
+La opción 14 pide una ruta para un archivo nuevo, por ejemplo `reporte-noviembre.tsv`. La carpeta debe existir. La opción 15 recupera ese archivo y reconstruye el resumen, sin insertar ni actualizar registros en MySQL. Los reportes se escriben con UTF-8 y no sobrescriben archivos existentes.
+
+El formato TSV tiene una primera línea `HUELLAS_CONSULTAS_V1` con las fechas del período y una segunda línea con los nombres de seis columnas. Cada fila contiene ID de consulta, ID de mascota, nombre de mascota y veterinario en Base64, fecha de atención y peso. Base64 conserva tabulaciones y saltos de línea dentro de los nombres; no cifra los datos. Se valida la versión, la cabecera, el número de campos, los IDs, las fechas, el período, el peso y los IDs duplicados. El archivo no incluye DNI, teléfono, diagnóstico ni tratamiento.
 
 ## Pruebas reproducibles
 
@@ -78,9 +99,9 @@ Con MySQL y Connector/J:
 .\Ejecutar.ps1 -Integracion -Conector 'C:\DevTools\mysql-connector-j-26.7.0\mysql-connector-j-26.7.0.jar'
 ```
 
-`PruebasModelo` comprueba constructores, estados, polimorfismo, fechas y algoritmos. `PruebasConsola` ejecuta el programa como proceso y verifica entradas inválidas y fin de entrada. `PruebasIntegracion` crea registros con una marca exclusiva, consulta con nuevas conexiones y elimina únicamente sus propios IDs al terminar. Si se interrumpe a la fuerza, pueden quedar esos datos de prueba; no deben borrarse registros ajenos para limpiarlos.
+`PruebasModelo` comprueba constructores, estados, polimorfismo, fechas y algoritmos. `PruebasConsola` ejecuta el programa como proceso y verifica entradas inválidas y fin de entrada. `PruebasTP4` verifica los nuevos estados, arreglos, reportes y errores de archivos. `PruebasIntegracion` crea registros con una marca exclusiva, consulta con nuevas conexiones y elimina únicamente sus propios IDs al terminar. Si se interrumpe a la fuerza, pueden quedar esos datos de prueba; no deben borrarse registros ajenos para limpiarlos.
 
-La integración cubre DNI y turno duplicados, filtros, transacción de atención, vacunas, historia persistida y conservación de antecedentes tras la baja lógica. No reemplaza una prueba de carga ni una validación con personal de la clínica.
+La integración cubre DNI y turno duplicados, filtros, transacción de atención, vacunas, historia persistida, conservación de antecedentes, búsqueda de clientes, cancelación, reprogramación, rollback del horario y el menú real con reportes. No reemplaza una prueba de carga ni una validación con personal de la clínica.
 
 ## Recorrido manual sugerido
 
@@ -90,4 +111,6 @@ Las fechas simples usan `AAAA-MM-DD`; las reservas usan `DD/MM/AAAA HH:MM`. Los 
 
 ## Verificación de esta entrega
 
-El 20 de octubre de 2026 se ejecutaron 18 pruebas del modelo, 8 de consola y 27 de integración: 53 correctas. La compilación se hizo con JDK 27 y `--release 17`. La integración usó MySQL 8.0.46 y Connector/J 26.7.0 en una instancia temporal local del puerto 3307, con el mismo esquema del proyecto; no se modificó la base original. También se forzó una falla después del INSERT de consulta y se verificó desde otra conexión que no quedara una atención parcial. La instancia temporal se cerró después de las pruebas.
+El 6 de noviembre de 2026 se ejecutaron 18 pruebas del modelo, 12 de consola, 20 de las funciones nuevas de TP4 y 38 de integración: 88 correctas. Se compiló con JDK 27 y `--release 17`. La integración usó MySQL 8.0.46 y Connector/J 26.7.0 en una instancia temporal local del puerto 3308, con el mismo esquema y un usuario con permisos SELECT, INSERT, UPDATE y DELETE. No se modificó la base original. Al terminar se verificó que no quedaran registros de prueba y se cerró la instancia.
+
+Las pruebas de archivos incluyen lectura posterior al guardado, texto con separadores y acentos, reportes vacíos, archivos incompletos, inexistentes o con texto UTF-8 dañado y rechazo de sobrescritura. Las de transacciones incluyen fallas posteriores al INSERT de una consulta y reprogramaciones a un horario ocupado.

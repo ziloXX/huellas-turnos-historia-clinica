@@ -1,3 +1,4 @@
+package huellas.modelo;
 import java.time.LocalDate;
 public final class Vacuna {
     private final long id, consultaId;

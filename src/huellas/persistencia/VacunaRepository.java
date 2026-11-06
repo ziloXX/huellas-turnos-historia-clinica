@@ -1,3 +1,5 @@
+package huellas.persistencia;
+import huellas.modelo.*;
 import java.sql.*;
 import java.time.*;
 import java.util.ArrayList;

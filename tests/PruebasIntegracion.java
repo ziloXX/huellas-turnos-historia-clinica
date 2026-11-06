@@ -1,3 +1,6 @@
+import huellas.modelo.*;
+import huellas.servicio.*;
+import huellas.persistencia.*;
 import java.sql.*;
 import java.time.*;
 import java.math.BigDecimal;
@@ -42,15 +45,15 @@ public final class PruebasIntegracion {
         LocalDateTime inicio=LocalDate.now().plusDays(10).atTime(10,0);
         try {
             try(Connection con=Conexion.abrir()) { verificar(con.isValid(5),"Conexión real a MySQL"); }
-            cliente=servicio.registrarCliente("Cliente de prueba TP3",marca,"3510000000","");
+            cliente=servicio.registrarCliente("Cliente de prueba TP4",marca,"3510000000","");
             verificar(cliente>0 && servicio.cliente(cliente).getDni().equals(marca),"Alta y lectura de cliente");
             duplicado(()->servicio.registrarCliente("Repetido",marca,"3510000000",""),"DNI duplicado rechazado");
             mascota=servicio.registrarMascota(cliente,"Prueba"+marca,"GATO","","HEMBRA",null,"Polen");
             verificar(mascota>0,"Alta de mascota");
             rechazar(()->servicio.registrarMascota(cliente,"Ave","AVE","","HEMBRA",null,""),"Especie inválida rechazada");
             verificar(servicio.buscarMascotas("prueba"+marca).stream().anyMatch(m->m.getId()==mascota),"Búsqueda por nombre desde MySQL");
-            veterinario=altaVeterinario("Veterinario de prueba TP3","T"+marca);
-            otroVeterinario=altaVeterinario("Otro veterinario de prueba TP3","U"+marca);
+            veterinario=altaVeterinario("Veterinario de prueba TP4","T"+marca);
+            otroVeterinario=altaVeterinario("Otro veterinario de prueba TP4","U"+marca);
             verificar(servicio.listarVeterinarios().stream().anyMatch(v->v.getId()==veterinario),"Lista de objetos Veterinario");
             long turno=servicio.agendarTurno(mascota,veterinario,inicio,"Control"); turnos.add(turno);
             verificar(turno>0,"Reserva futura");
@@ -84,6 +87,25 @@ public final class PruebasIntegracion {
             verificar(servicio.historial(mascota).getConsultas().size()==1
                 && servicio.turnosDelDia(inicio.toLocalDate(),veterinario).stream().filter(t->t.getId()==temprano).findFirst().orElseThrow().getEstado()==EstadoTurno.CONFIRMADO,
                 "Rollback real: sin consulta parcial y turno confirmado desde otra conexión");
+            verificar(servicio.buscarClientes(marca).stream().anyMatch(c->c.getId()==cliente),"Buscar cliente por DNI");
+            verificar(servicio.buscarClientes("Cliente de prueba TP4").stream().anyMatch(c->c.getId()==cliente),"Buscar cliente por nombre");
+            duplicado(()->servicio.reprogramarTurno(temprano,inicio),"Reprogramación a horario ocupado rechazada");
+            verificar(servicio.turnosDelDia(inicio.toLocalDate(),veterinario).stream().anyMatch(t->t.getId()==temprano&&t.getInicio().equals(inicio.minusHours(1))),"Rollback de reprogramación conserva horario anterior");
+            servicio.reprogramarTurno(otro,inicio.plusHours(2));
+            verificar(servicio.turnosDelDia(inicio.toLocalDate(),otroVeterinario).stream().anyMatch(t->t.getId()==otro&&t.getInicio().equals(inicio.plusHours(2))),"Reprogramación conserva el ID y cambia horario en MySQL");
+            servicio.cancelarTurno(otro,"No puede asistir");
+            verificar(servicio.turnosDelDia(inicio.toLocalDate(),otroVeterinario).stream().anyMatch(t->t.getId()==otro&&t.getEstado()==EstadoTurno.CANCELADO),"Cancelación persistida");
+            long reemplazo=servicio.agendarTurno(mascota,otroVeterinario,inicio.plusHours(2),"Otro control");turnos.add(reemplazo);
+            verificar(reemplazo>0,"Cancelación libera el horario para otra reserva");
+            rechazar(()->servicio.cancelarTurno(turno,"Motivo"),"No cancelar atención cerrada");
+            rechazar(()->servicio.reprogramarTurno(turno,inicio.plusHours(3)),"No reprogramar atención cerrada");
+            ReporteConsultas reporte=servicio.reporte(LocalDate.now(),LocalDate.now());
+            verificar(reporte.getFilas().stream().anyMatch(f->f.consultaId()==consulta)&&reporte.getPorDia()[LocalDate.now().getDayOfWeek().getValue()-1]>=1,"Reporte MySQL por fecha real de atención y arreglo semanal");
+            String entrada="3\n8\nPrueba"+marca+"\n10\n"+marca+"\n5\n"+inicio.toLocalDate()+"\n"+veterinario+"\n13\n"+LocalDate.now()+"\n"+LocalDate.now()+"\n0\n";
+            Process proceso=new ProcessBuilder(java.nio.file.Path.of(System.getProperty("java.home"),"bin","java").toString(),"-Dstdout.encoding=UTF-8","-Dstderr.encoding=UTF-8","-cp",System.getProperty("java.class.path"),"HuellasApp").redirectErrorStream(true).start();
+            try(var out=proceso.getOutputStream()){out.write(entrada.getBytes(java.nio.charset.StandardCharsets.UTF_8));}
+            String pantalla=new String(proceso.getInputStream().readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);
+            verificar(proceso.waitFor()==0&&pantalla.contains("Prueba"+marca)&&pantalla.contains("DNI "+marca)&&pantalla.contains("Consultas atendidas entre")&&pantalla.contains("Hasta luego."),"Menú real: veterinarios, búsqueda, cliente, agenda y reporte con MySQL");
             long vacuna=servicio.registrarVacuna(consulta,"Antirrábica",LocalDate.now(),LocalDate.now().plusYears(1)); vacunas.add(vacuna);
             verificar(vacuna>0,"Alta de vacuna desde servicio");
             rechazar(()->servicio.registrarVacuna(consulta,"Antirrábica",LocalDate.now(),LocalDate.now().minusDays(1)),"Refuerzo anterior rechazado");

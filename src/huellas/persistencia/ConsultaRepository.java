@@ -1,3 +1,5 @@
+package huellas.persistencia;
+import huellas.modelo.*;
 import java.sql.*;
 import java.time.*;
 import java.util.ArrayList;
@@ -6,7 +8,7 @@ public final class ConsultaRepository {
     private final TurnoRepository turnos;
     public ConsultaRepository() { this(new TurnoRepository()); }
     // Permite comprobar fallas de actualización sin reemplazar la conexión real.
-    ConsultaRepository(TurnoRepository turnos) { this.turnos=turnos; }
+    public ConsultaRepository(TurnoRepository turnos) { this.turnos=turnos; }
     public long guardar(Consulta consulta) throws SQLException {
         String sql="INSERT INTO consultas (turno_id,motivo,diagnostico,tratamiento,peso_kg) VALUES (?,?,?,?,?)";
         try (Connection con=Conexion.abrir()) {
@@ -41,5 +43,14 @@ public final class ConsultaRepository {
             }
         }
         return lista;
+    }
+    public List<FilaConsulta> porPeriodo(LocalDate desde,LocalDate hasta)throws SQLException {
+        String sql="SELECT c.id,t.mascota_id,m.nombre AS mascota,v.nombre AS veterinario,c.atendida_en,c.peso_kg FROM consultas c JOIN turnos t ON t.id=c.turno_id JOIN mascotas m ON m.id=t.mascota_id JOIN veterinarios v ON v.id=t.veterinario_id WHERE DATE(c.atendida_en)>=? AND DATE(c.atendida_en)<=? ORDER BY c.atendida_en,c.id";
+        List<FilaConsulta> filas=new ArrayList<>();
+        try(Connection con=Conexion.abrir();PreparedStatement ps=con.prepareStatement(sql)) {
+            ps.setDate(1,Date.valueOf(desde));ps.setDate(2,Date.valueOf(hasta));
+            try(ResultSet rs=ps.executeQuery()){while(rs.next())filas.add(new FilaConsulta(rs.getLong("id"),rs.getLong("mascota_id"),rs.getString("mascota"),rs.getString("veterinario"),rs.getTimestamp("atendida_en").toLocalDateTime(),rs.getBigDecimal("peso_kg")));}
+        }
+        return filas;
     }
 }

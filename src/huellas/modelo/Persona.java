@@ -1,3 +1,4 @@
+package huellas.modelo;
 public abstract class Persona {
     private final long id;
     private final String nombre;

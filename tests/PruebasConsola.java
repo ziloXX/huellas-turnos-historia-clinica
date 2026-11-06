@@ -1,3 +1,6 @@
+import huellas.modelo.*;
+import huellas.servicio.*;
+import huellas.persistencia.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 public final class PruebasConsola {
@@ -19,6 +22,10 @@ public final class PruebasConsola {
         probar("","Fin de la entrada.","Fin de entrada en el menú");
         probar("9\n1\nVacuna\n2026-02-30\n0\n","Hasta luego.","Fecha inválida en vacuna");
         probar("0\n","9. Registrar vacuna","Nuevas opciones disponibles");
+        probar("10\n\n0\n","Hasta luego.","Búsqueda de cliente vacía controlada");
+        probar("11\nabc\n0\n","Hasta luego.","Cancelación con ID inválido");
+        probar("12\n1\n30/02/2027 10:00\n0\n","Hasta luego.","Reprogramación con fecha imposible");
+        probar("15\narchivo-que-no-existe-huellas.tsv\n0\n","No se pudo guardar o leer el archivo:","Archivo inexistente recupera menú");
         System.out.println("TOTAL: " + total + " pruebas de consola correctas.");
     }
 }
